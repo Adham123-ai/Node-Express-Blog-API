@@ -23,14 +23,53 @@ const createPost = asyncWrapper(async (req, res, next) => {
   });
 });
 
-// Get All Posts
+// Get All Posts - Advanced Features
 const getAllPosts = asyncWrapper(async (req, res) => {
-  const posts = await Post.find()
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    category,
+    author,
+    sort = "-createdAt",
+  } = req.query;
+
+  const filter = {};
+
+  // Search by title or content
+  if (search) {
+    filter.$or = [
+      { title: { $regex: search, $options: "i" } },
+      { content: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Filter by category
+  if (category) {
+    filter.category = category;
+  }
+
+  // Filter by author
+  if (author) {
+    filter.author = author;
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const posts = await Post.find(filter)
     .populate("author", "name email")
-    .sort({ createdAt: -1 });
+    .sort(sort)
+    .skip(skip)
+    .limit(Number(limit));
+
+  const totalPosts = await Post.countDocuments(filter);
 
   res.status(200).json({
     success: true,
+    page: Number(page),
+    limit: Number(limit),
+    totalPosts,
+    totalPages: Math.ceil(totalPosts / Number(limit)),
     count: posts.length,
     posts,
   });
